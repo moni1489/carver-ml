@@ -119,6 +119,11 @@ class FurrowExport(BaseModel):
     min_precision: float = Field(gt=0, le=1)
     # composition: crop lists every predicted group with its share; dominant: one Furrow key per cell.
     crop_mode: Literal["composition", "dominant"] = "composition"
+    # Optional finer layer "detail" with the same cell format (None = no detail layer).
+    detail_resolution: int | None = Field(default=None, ge=0, le=15)
+    # Checks run outside the main CV (e.g. another year), quoted in `validation` as written.
+    # Empty = "другие регионы и годы не проверялись".
+    checks: list[str] = Field(default_factory=list)
 
 
 class ExportConfig(BaseModel):

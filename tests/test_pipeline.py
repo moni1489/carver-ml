@@ -47,6 +47,7 @@ from fs_ml.furrow import (
     compose,
     composition_text,
     low_confidence_notes,
+    validation_text,
 )
 from fs_ml.models import decide, decision_rule_text, usable_mask
 
@@ -328,7 +329,11 @@ def test_compose_writes_centre_inside_cell_with_composition() -> None:
     assert list(cells) == [cell]
     assert cells[cell].crop == "alfalfa 25%, fallow 50% (низкая достоверность)"
     assert cells[cell].crop_p == 0.25
+    # crop_top: largest non-other group even when low confidence, with its Furrow key and the flag
+    assert (cells[cell].crop_top, cells[cell].crop_top_share, cells[cell].low_confidence) == ("fallow", 0.5, True)
     assert report.written[cell]["n_pixels_in_bbox"] == 4
+    confident, _ = compose(pixels, bbox, 5, keys, "other", {})
+    assert confident[cell].low_confidence is False
     only_other, report = compose(_pixels(["other"], bbox), bbox, 5, keys, "other", {})
     assert only_other == {}
     assert "только other" in report.skipped_reasons[cell]
@@ -504,3 +509,17 @@ def test_fingerprint_unchanged_for_default_features_changed_for_swir() -> None:
     assert baseline_fingerprint(_ml(swir1_band="B06", swir2_band="B07"), crops) == base
     swir = _ml(features=["ndvi", "swir"], swir1_band="B06", swir2_band="B07")
     assert baseline_fingerprint(swir, crops) != base
+
+
+def test_validation_text_quotes_checks_instead_of_not_checked_note() -> None:
+    summary = {
+        "macro_f1_agri_truth": 0.73, "macro_f1_rule_agri_truth": 0.9, "macro_f1_agri_bbox": 0.7,
+        "accuracy_bbox": 0.86, "majority_baseline_bbox": 0.25, "buffer_px": 30, "dates_used": 22, "dates": 27,
+        "features_text": "NDVI", "decision_rule": "argmax",
+    }
+    bbox = (0.0, 0.0, 1.0, 1.0)
+    default = validation_text(summary, _baseline(), _crops(), [], bbox, 2021, "HLSL30")
+    assert default.endswith("другие регионы и годы не проверялись")
+    checked = validation_text(summary, _baseline(), _crops(), [], bbox, 2021, "HLSL30", ["перенос на 2020: 0.86"])
+    assert checked.endswith("перенос на 2020: 0.86")
+    assert "не проверялись" not in checked

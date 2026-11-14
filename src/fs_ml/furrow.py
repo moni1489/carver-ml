@@ -3,6 +3,7 @@
 import argparse
 import json
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +20,26 @@ from fs_ml.config import (
     load_crops_config,
     load_ml_config,
 )
+from fs_ml.inference import low_obs_months, season_months
 from fs_ml.models import decision_rule_text
 
 _UNPREDICTED = "unpredicted"
+_NODATA = "nodata"
 LOW_CONFIDENCE = "(низкая достоверность)"
+# Share of a cell's pixels (with observations in the month) that must be bare for the month to be bare in the cell.
+_CELL_BARE_SHARE = 0.5
+
+
+class YearEntry(BaseModel):
+    """One season of a cell. All fields optional so older readers and partial data stay valid."""
+
+    crop: str | None = Field(default=None, description="состав по долям пикселей ячейки, other не выводится")
+    source: str | None = Field(default=None, description="USDA CDL (факт) или model (предсказание, год со звёздочкой)")
+    bare_obs_dates: int | None = Field(default=None, description="медиана по пикселям: чистые даты с NDVI ниже порога")
+    bare_months: list[int] | None = Field(default=None, description="месяцы, голые у не менее половины пикселей")
+    low_obs_months: list[int] | None = Field(
+        default=None, description="месяцы с одной чистой датой и меньше: мало наблюдений, в bare_months не входят"
+    )
 
 
 class FurrowCell(BaseModel):
@@ -34,6 +51,7 @@ class FurrowCell(BaseModel):
         le=1,
         description="доля пикселей ячейки внутри bbox, предсказанных как crop; не вероятность модели",
     )
+    years: dict[str, YearEntry] | None = None
 
 
 class CompositionCell(BaseModel):
@@ -46,6 +64,19 @@ class CompositionCell(BaseModel):
         le=1,
         description="доля пикселей самой большой группы с precision выше порога; не вероятность модели",
     )
+    crop_top: str | None = Field(
+        default=None, description="ключ самой большой группы ячейки без other (для раскраски карты)"
+    )
+    crop_top_share: float | None = Field(default=None, ge=0, le=1, description="доля пикселей crop_top")
+    low_confidence: bool | None = Field(
+        default=None, description="true, если precision группы crop_top по bbox не выше порога"
+    )
+    years: dict[str, YearEntry] | None = None
+
+
+class DetailLayer(BaseModel):
+    h3_resolution: int
+    cells: dict[str, FurrowCell | CompositionCell]
 
 
 class FurrowLayer(BaseModel):
@@ -53,6 +84,7 @@ class FurrowLayer(BaseModel):
     version: str
     validation: str
     cells: dict[str, FurrowCell | CompositionCell]
+    detail: DetailLayer | None = None
 
 
 @dataclass
@@ -111,23 +143,86 @@ def split_cells(bbox: tuple[float, float, float, float], resolution: int) -> tup
     return inside, outside
 
 
+def _cell_groups(
+    pixels: pd.DataFrame, bbox: tuple[float, float, float, float], resolution: int, report: ExportReport
+) -> dict[str, pd.DataFrame]:
+    """In-bbox predicted pixels grouped by centre-inside cell (cells without pixels are reported)."""
+    inside_cells, report.centre_outside_bbox = split_cells(bbox, resolution)
+    keep = pixels["in_bbox"].to_numpy() & (pixels["dominant_crop"].to_numpy() != _UNPREDICTED)
+    chosen = pixels.loc[keep]
+    keys = [h3.latlng_to_cell(y, x, resolution) for x, y in zip(chosen["lon"], chosen["lat"], strict=True)]
+    chosen = chosen.assign(cell=keys)
+    inside = set(inside_cells)
+    groups = {str(cell): frame for cell, frame in chosen.groupby("cell") if cell in inside}
+    for cell in inside_cells:
+        if cell not in groups:
+            report.skipped_reasons[cell] = "нет пикселей внутри bbox"
+    return {cell: groups[cell] for cell in inside_cells if cell in groups}
+
+
 def _cell_counts(
     pixels: pd.DataFrame, bbox: tuple[float, float, float, float], resolution: int, report: ExportReport
 ) -> dict[str, pd.Series]:
     """Predicted-group counts of in-bbox pixels for every centre-inside cell (cells without pixels are reported)."""
-    inside_cells, report.centre_outside_bbox = split_cells(bbox, resolution)
-    keep = pixels["in_bbox"].to_numpy() & (pixels["dominant_crop"].to_numpy() != _UNPREDICTED)
-    chosen = pixels.loc[keep, ["lon", "lat", "dominant_crop"]]
-    keys = [h3.latlng_to_cell(y, x, resolution) for x, y in zip(chosen["lon"], chosen["lat"], strict=True)]
-    chosen = chosen.assign(cell=keys)
-    out: dict[str, pd.Series] = {}
-    for cell in inside_cells:
-        counts = chosen.loc[chosen["cell"] == cell, "dominant_crop"].value_counts()
-        if counts.empty:
-            report.skipped_reasons[cell] = "нет пикселей внутри bbox"
+    return {
+        cell: frame["dominant_crop"].value_counts()
+        for cell, frame in _cell_groups(pixels, bbox, resolution, report).items()
+    }
+
+
+def history_years(pixels: pd.DataFrame) -> list[int]:
+    """Previous-year CDL columns present in the pixel table (cdl_group_YYYY)."""
+    return sorted(int(c.removeprefix("cdl_group_")) for c in pixels.columns if c.startswith("cdl_group_"))
+
+
+def bare_month_columns(pixels: pd.DataFrame) -> list[tuple[int, str]]:
+    return sorted((int(c.removeprefix("bare_status_")), c) for c in pixels.columns if c.startswith("bare_status_"))
+
+
+def cell_bare_months(frame: pd.DataFrame, skip: set[int] | None = None) -> list[int]:
+    """Months bare for at least half of the cell's pixels that have observations in that month (status 1/0/-1).
+
+    Months in `skip` (low observations) are never reported as bare.
+    """
+    out: list[int] = []
+    for month, column in bare_month_columns(frame):
+        if month in (skip or set()):
             continue
-        out[cell] = counts
+        status = frame[column].to_numpy()
+        known = status >= 0
+        if known.any() and float((status[known] == 1).mean()) >= _CELL_BARE_SHARE:
+            out.append(month)
     return out
+
+
+def cell_years(
+    frame: pd.DataFrame,
+    prediction_year: int,
+    prediction_crop: str,
+    furrow_keys: dict[str, str],
+    other_group: str,
+    low_obs: set[int] | None = None,
+) -> dict[str, YearEntry]:
+    """years for one cell: previous years from CDL (fact), the prediction year from the model."""
+    years: dict[str, YearEntry] = {}
+    for year in history_years(frame):
+        groups = frame[f"cdl_group_{year}"]
+        groups = groups[groups != _NODATA]
+        if groups.empty:
+            years[str(year)] = YearEntry(source="USDA CDL")
+            continue
+        shares = {str(k): float(v) for k, v in groups.value_counts(normalize=True).items()}
+        text, _ = composition_text(shares, furrow_keys, other_group, set())
+        years[str(year)] = YearEntry(crop=text or None, source="USDA CDL")
+    entry = YearEntry(crop=prediction_crop or None, source="model")
+    if "bare_obs_dates" in frame.columns:
+        entry.bare_obs_dates = round(float(frame["bare_obs_dates"].median()))
+    if bare_month_columns(frame):
+        entry.bare_months = cell_bare_months(frame, low_obs)
+        if low_obs:
+            entry.low_obs_months = sorted(low_obs)
+    years[str(prediction_year)] = entry
+    return years
 
 
 def _written_info(cell: str, counts: pd.Series) -> dict[str, Any]:
@@ -189,6 +284,15 @@ def composition_text(
     return ", ".join(parts), crop_p
 
 
+def top_group(shares: dict[str, float], other_group: str) -> tuple[str, float] | None:
+    """Largest group of the cell other than other_group, with its share (None if the cell is only other)."""
+    candidates = {g: s for g, s in shares.items() if g != other_group}
+    if not candidates:
+        return None
+    group = max(candidates, key=lambda g: (candidates[g], g))
+    return group, candidates[group]
+
+
 def compose(
     pixels: pd.DataFrame,
     bbox: tuple[float, float, float, float],
@@ -196,17 +300,37 @@ def compose(
     furrow_keys: dict[str, str],
     other_group: str,
     blocked: dict[str, dict[str, float]],
+    prediction_year: int | None = None,
+    low_obs: set[int] | None = None,
 ) -> tuple[dict[str, CompositionCell], ExportReport]:
-    """crop_mode composition: share of every predicted group per centre-inside cell (other not shown)."""
+    """crop_mode composition: share of every predicted group per centre-inside cell (other not shown).
+
+    With prediction_year set, each cell also gets `years` (previous-year CDL columns and bare-month columns are
+    used when the pixel table has them).
+    """
     report = ExportReport(groups_below_precision=blocked)
     cells: dict[str, CompositionCell] = {}
-    for cell, counts in _cell_counts(pixels, bbox, resolution, report).items():
+    for cell, frame in _cell_groups(pixels, bbox, resolution, report).items():
+        counts = frame["dominant_crop"].value_counts()
         shares = {str(k): float(v / counts.sum()) for k, v in counts.items()}
         text, crop_p = composition_text(shares, furrow_keys, other_group, set(blocked))
         if not text:
             report.skipped_reasons[cell] = f"в ячейке только {other_group}, ячейка не записана"
             continue
-        cells[cell] = CompositionCell(crop=text, crop_p=crop_p)
+        years = (
+            cell_years(frame, prediction_year, text, furrow_keys, other_group, low_obs)
+            if prediction_year is not None
+            else None
+        )
+        top = top_group(shares, other_group)
+        cells[cell] = CompositionCell(
+            crop=text,
+            crop_p=crop_p,
+            crop_top=furrow_keys.get(top[0], top[0]) if top else None,
+            crop_top_share=round(top[1], 4) if top else None,
+            low_confidence=(top[0] in blocked) if top else None,
+            years=years,
+        )
         report.written[cell] = _written_info(cell, counts)
     return cells, report
 
@@ -243,6 +367,32 @@ def composition_notes(
     return notes
 
 
+def years_notes(
+    history: list[int], prediction_year: int, bare_ndvi: float, low_obs: dict[int, list[str]]
+) -> list[str]:
+    """Validation notes for cells[h3].years: sources and aggregation rules, plus months with few observations."""
+    hist = "–".join(str(y) for y in (history[:1] + history[-1:] if len(history) > 1 else history))
+    notes = []
+    if history:
+        notes.append(f"years: {hist} — история USDA CDL (факт), доли пикселей ячейки по группам")
+    notes += [
+        f"{prediction_year}* — предсказание модели (source: model)",
+        f"bare_obs_dates — медиана по пикселям ячейки числа чистых дат с NDVI < {bare_ndvi}",
+        (
+            f"bare_months — месяцы, голые у не менее {_CELL_BARE_SHARE:.0%} пикселей ячейки с наблюдениями; "
+            f"месяц пикселя голый, если NDVI < {bare_ndvi} на половине его чистых дат или больше, "
+            "без чистых дат — неизвестно"
+        ),
+    ]
+    for month, days in sorted(low_obs.items()):
+        seen = ", ".join(days) if days else "нет дат"
+        notes.append(
+            f"месяц {month:02d}: мало наблюдений ({len(days)} чистая дата по bbox: {seen}), "
+            "в bare_months не входит, см. low_obs_months"
+        )
+    return notes
+
+
 def validation_text(
     summary: dict[str, Any],
     bcfg: BaselineConfig,
@@ -251,8 +401,12 @@ def validation_text(
     bbox: tuple[float, float, float, float],
     year: int,
     sensor: str,
+    checks: list[str] | None = None,
 ) -> str:
-    """Human-readable validation line; every number and setting comes from the summary or the configs."""
+    """Human-readable validation line; every number and setting comes from the summary or the configs.
+
+    `checks` (export.furrow.checks) replaces the closing "not checked" note when other checks were run.
+    """
     n_agri = len(crops.agricultural_groups)
     excluded = bcfg.buffer_rule_exclude_groups
     rule_part = f"без {', '.join(excluded)} {summary['macro_f1_rule_agri_truth']:.2f}; " if excluded else ""
@@ -272,24 +426,46 @@ def validation_text(
         f"только bbox {list(bbox)}",
         f"правило решения: {summary['decision_rule']}",
         *notes,
-        "другие регионы и годы не проверялись",
+        *(checks or ["другие регионы и годы не проверялись"]),
     ]
     return "; ".join(parts)
 
 
 def build_layer(
-    ml: MLConfig, crops: CropsConfig, furrow: FurrowExport, summary: dict[str, Any], class_metrics: pd.DataFrame,
+    ml: MLConfig,
+    crops: CropsConfig,
+    furrow: FurrowExport,
+    summary: dict[str, Any],
+    class_metrics: pd.DataFrame,
     pixels: pd.DataFrame,
+    low_obs: dict[int, list[str]] | None = None,
 ) -> tuple[FurrowLayer, ExportReport]:
     groups = list(crops.groups) + [crops.other_group]
     blocked = blocked_groups(class_metrics, list(crops.groups), furrow.min_precision)
+    year = min(ml.ingest.dates).year
     cells: dict[str, FurrowCell | CompositionCell]
+    detail: DetailLayer | None = None
     if furrow.crop_mode == "composition":
+        skip = set(low_obs or {})
         composed, report = compose(
-            pixels, ml.ingest.bbox, furrow.h3_resolution, crops.furrow_keys, crops.other_group, blocked
+            pixels, ml.ingest.bbox, furrow.h3_resolution, crops.furrow_keys, crops.other_group, blocked, year, skip
         )
         cells = dict(composed)
         notes = composition_notes(crops, blocked, furrow.min_precision)
+        notes += years_notes(history_years(pixels), year, ml.thresholds.bare_soil_ndvi, low_obs or {})
+        if furrow.detail_resolution is not None:
+            fine, _ = compose(
+                pixels,
+                ml.ingest.bbox,
+                furrow.detail_resolution,
+                crops.furrow_keys,
+                crops.other_group,
+                blocked,
+                year,
+                skip,
+            )
+            detail = DetailLayer(h3_resolution=furrow.detail_resolution, cells=dict(fine))
+            notes.append(f"detail — те же поля на ячейках H3 res {furrow.detail_resolution} с центром внутри bbox")
     else:
         dominant, report = aggregate(pixels, ml.ingest.bbox, furrow.h3_resolution, crops.furrow_keys, groups, blocked)
         cells = dict(dominant)
@@ -297,12 +473,14 @@ def build_layer(
             *low_confidence_notes(crops, class_metrics, blocked),
             "crop_pixel_share — доля пикселей, не вероятность модели",
         ]
-    year = min(ml.ingest.dates).year
     layer = FurrowLayer(
         model=furrow.model,
         version=furrow.version,
-        validation=validation_text(summary, ml.baseline, crops, notes, ml.ingest.bbox, year, ml.ingest.short_name),
+        validation=validation_text(
+            summary, ml.baseline, crops, notes, ml.ingest.bbox, year, ml.ingest.short_name, furrow.checks
+        ),
         cells=cells,
+        detail=detail,
     )
     return layer, report
 
@@ -323,7 +501,9 @@ def main() -> None:
     check_baseline_matches(summary, ml, crops)
     class_metrics = pd.read_csv(bcfg.reports_dir / "class_metrics_2021.csv").set_index("group")
     pixels = pd.read_parquet(bcfg.output_dir / "pixel_summary_2021.parquet")
-    layer, report = build_layer(ml, crops, furrow, summary, class_metrics, pixels)
+    kept = [date.fromisoformat(d) for d in summary.get("date_list", [])]
+    low_obs = low_obs_months(kept, season_months(ml.ingest.temporal)) if kept else {}
+    layer, report = build_layer(ml, crops, furrow, summary, class_metrics, pixels, low_obs)
     furrow.path.parent.mkdir(parents=True, exist_ok=True)
     furrow.path.write_text(layer.model_dump_json(indent=2, exclude_none=True), encoding="utf-8")
 

@@ -1,0 +1,42 @@
+{
+  "fallow_idle_precision_bbox_history_buffer150": 0.8501721064256803,
+  "crop_f1_drop_vs_reference": {
+    "f1_alfalfa_agri@30": -0.000282135580118803,
+    "f1_cotton_agri@30": 0.00210809033920234,
+    "f1_corn_agri@30": 0.0008746452641286151,
+    "f1_alfalfa_agri@90": -0.0017871058941755225,
+    "f1_cotton_agri@90": -0.0014243963518724145,
+    "f1_corn_agri@90": -2.7459422404452205e-05,
+    "f1_alfalfa_agri@150": 0.0012531164961836483,
+    "f1_cotton_agri@150": -0.0014282178980508098,
+    "f1_corn_agri@150": 0.0013233222741477757
+  },
+  "preview_condition_met": true,
+  "applicability": "history требует CDL прошлых лет: только США; для регионов без CDL (vko) недоступен",
+  "az_json_preview": {
+    "model": "fs_ml RandomForest NDVI+SWIR baseline (HLS L30, CDL 2021 labels)",
+    "version": "2026-11-14",
+    "validation": "macro F1 0.73 по 5 сельхоз-группам CDL 2021 на сельхоз-пикселях (без small_grains 0.90; на всём bbox 0.70); accuracy bbox 0.86 против 0.25 у самого частого класса; пространственная блочная CV 3x3, буфер 30 px; HLSL30 2021, 22 из 27 дат; признаки: NDVI+SWIR1+SWIR2+NDMI по 22 датам + обработка по CDL 2019, 2020 и их сумма (91); только bbox [-112.07088, 32.87118, -111.88474, 33.0262]; правило решения: argmax; crop — состав ячейки по долям пикселей внутри bbox, other не выводится; (низкая достоверность) — precision по bbox не выше 0.7: small_grains 0.15; crop_p — доля самой большой группы с precision выше 0.7, не вероятность модели; другие регионы и годы не проверялись",
+    "cells": {
+      "8548e943fffffff": {
+        "crop": "fallow 29%, alfalfa 20%, corn 19%, cotton 13%",
+        "crop_p": 0.2859
+      }
+    }
+  },
+  "preview_report": {
+    "cells_centre_outside_bbox": [
+      "8548e947fffffff",
+      "8548e94bfffffff",
+      "8548e94ffffffff",
+      "8548e957fffffff"
+    ],
+    "skipped_reasons": {},
+    "groups_below_precision": {
+      "small_grains": {
+        "precision_bbox": 0.1454,
+        "min_precision": 0.7
+      }
+    }
+  }
+}

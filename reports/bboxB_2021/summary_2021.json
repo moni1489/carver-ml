@@ -1,25 +1,26 @@
 {
-  "accuracy_agri_truth": 0.8554208640606674,
-  "accuracy_bbox": 0.7739432237640989,
+  "accuracy_agri_truth": 0.8900122106007294,
+  "accuracy_bbox": 0.8610498589354003,
   "majority_class_bbox": "fallow_idle",
   "majority_baseline_bbox": 0.2521733614455648,
   "majority_class_agri_truth": "fallow_idle",
   "majority_baseline_agri_truth": 0.3353215725968413,
   "other_share_bbox": 0.24796558869549984,
-  "macro_f1_agri_truth": 0.7200068861147665,
-  "macro_f1_agri_bbox": 0.6744366007869896,
+  "macro_f1_agri_truth": 0.7307835279531669,
+  "macro_f1_agri_bbox": 0.7048539411203689,
   "majority_class_bbox_no_other": "fallow_idle",
   "majority_baseline_bbox_no_other": 0.2521733614455648,
   "buffer_px": 30,
   "decision_rule": "argmax",
   "min_proba": {},
-  "config_sha256": "190c45bd73d6bf6f5dbf962742da3cccaf6a8a3d3d2543fa55c92c9d69c62224",
+  "config_sha256": "b85ecb2cba7f7f778b904489cbd8acf53f4738680529de29928dd6e735e8567f",
   "features": [
     "ndvi",
-    "swir"
+    "swir",
+    "history"
   ],
-  "features_text": "NDVI+SWIR1+SWIR2+NDMI по 22 датам (88)",
-  "n_features": 88,
+  "features_text": "NDVI+SWIR1+SWIR2+NDMI по 22 датам + обработка по CDL 2019, 2020 и их сумма (91)",
+  "n_features": 91,
   "grid_clipped_to_tile_edge": true,
   "min_clear_dates": 11,
   "n_grid_pixels": 335240,
@@ -98,10 +99,10 @@
     "corn",
     "fallow_idle"
   ],
-  "macro_f1_rule_agri_truth": 0.8838651098856106,
+  "macro_f1_rule_agri_truth": 0.8960028541017315,
   "grid_shape": [
     578,
     580
   ],
-  "validation": "пространственная блочная валидация 3x3 с буфером 30 px; метки CDL 2021; признаки: NDVI+SWIR1+SWIR2+NDMI по 22 датам (88); 22 из 27 дат HLS L30 v2.0 после исключения дат, где чистых пикселей в bbox меньше 50% (облако, тень, рядом с облаком: Fmask биты 1-3; B04 или B05 <= 0 тоже пропуск); пропуски не заполняются; только пиксели внутри lon/lat рамки bbox; обучение и метрики на пикселях с чистыми датами не меньше 11 из 22; основная метрика на сельхозпикселях CDL, общая точность по bbox отдельно; предсказание для карты и сводной таблицы сделано для всех пикселей; не проверено на других регионах и годах"
+  "validation": "пространственная блочная валидация 3x3 с буфером 30 px; метки CDL 2021; признаки: NDVI+SWIR1+SWIR2+NDMI по 22 датам + обработка по CDL 2019, 2020 и их сумма (91); 22 из 27 дат HLS L30 v2.0 после исключения дат, где чистых пикселей в bbox меньше 50% (облако, тень, рядом с облаком: Fmask биты 1-3; B04 или B05 <= 0 тоже пропуск); пропуски не заполняются; только пиксели внутри lon/lat рамки bbox; обучение и метрики на пикселях с чистыми датами не меньше 11 из 22; основная метрика на сельхозпикселях CDL, общая точность по bbox отдельно; предсказание для карты и сводной таблицы сделано для всех пикселей; не проверено на других регионах и годах"
 }

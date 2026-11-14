@@ -36,6 +36,7 @@ testpaths = ["tests"]
 "src/fs_ml/baseline.py" = ["E402"]
 "src/fs_ml/sweep.py" = ["E402"]
 "src/fs_ml/experiments.py" = ["E402"]
+"src/fs_ml/rotation.py" = ["E402"]
 
 [[tool.mypy.overrides]]
 module = ["rasterio.*", "sklearn.*", "matplotlib.*", "pyarrow.*", "pandas.*", "earthaccess.*", "rioxarray.*", "h3.*"]

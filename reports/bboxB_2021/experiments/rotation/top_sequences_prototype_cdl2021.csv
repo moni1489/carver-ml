@@ -1,0 +1,11 @@
+sequence,share
+other → other → other,0.1952780496055477
+fallow_idle → fallow_idle → fallow_idle,0.1915902528602322
+alfalfa → alfalfa → alfalfa,0.111742355599048
+cotton → corn → cotton,0.0534564411100238
+corn → alfalfa → alfalfa,0.04015198192647361
+corn → cotton → corn,0.03967477317482754
+alfalfa → alfalfa → corn,0.03233240307829848
+corn → corn → corn,0.03148671668297633
+cotton → cotton → cotton,0.02020586423108985
+alfalfa → corn → corn,0.016496925325891292

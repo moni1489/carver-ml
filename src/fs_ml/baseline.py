@@ -12,7 +12,12 @@ import numpy as np
 
 from fs_ml.config import baseline_fingerprint, load_crops_config, load_ml_config
 from fs_ml.features import build_stack, label_space, min_clear_dates, write_pixel_table
-from fs_ml.inference import pixel_summary, write_pixel_summary
+from fs_ml.inference import (
+    history_groups,
+    pixel_summary,
+    season_months,
+    write_pixel_summary,
+)
 from fs_ml.models import evaluate, spatial_cv, write_reports
 
 
@@ -60,6 +65,8 @@ def main() -> None:
         ml.thresholds.bare_soil_ndvi,
         crops.export_merge,
         crops.low_confidence_groups,
+        months=season_months(ml.ingest.temporal),
+        previous=history_groups(stack.grid, bcfg.history_cdl, space) if bcfg.history_cdl else None,
     )
     summary_path = bcfg.output_dir / "pixel_summary_2021.parquet"
     write_pixel_summary(table, summary_path)

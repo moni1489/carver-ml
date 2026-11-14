@@ -46,7 +46,8 @@ baseline:
   fmask_band: Fmask
   # Features per kept date: [ndvi] (default, current results) or [ndvi, swir] (adds SWIR1, SWIR2, NDMI).
   # SWIR on since 2026-11-14 (reports/bboxB_2021/experiments/swir/); NDVI-only reports: reports/_archive/bboxB_2021_ndvi/.
-  features: [ndvi, swir]
+  # history (previous-year CDL cultivation) on since 2026-11-14 (experiments/history/); NDVI+SWIR reports: reports/_archive/bboxB_2021_ndvi_swir/.
+  features: [ndvi, swir, history]
   swir1_band: B06
   swir2_band: B07
   # HLS v2.0 Fmask bits (LP DAAC User Guide, Table 9): 1 cloud, 2 adjacent to cloud/shadow, 3 cloud shadow.
@@ -98,7 +99,7 @@ export:
   furrow:
     path: data/ml/az.json
     h3_resolution: 5
-    model: fs_ml RandomForest NDVI+SWIR baseline (HLS L30, CDL 2021 labels)
+    model: fs_ml RandomForest NDVI+SWIR+history baseline (HLS L30, CDL 2021 labels, CDL 2019-2020 cultivation)
     version: "2026-11-14"
     # Bbox precision a group needs to be confident (applies to every group except other).
     # dominant: a cell whose top group is not above it is not written; composition: such groups are marked
@@ -107,3 +108,9 @@ export:
     # composition: crop = "alfalfa 20%, corn 19%, fallow 32% (низкая достоверность)", crop_p = share of the largest
     # confident group; dominant: crop = one Furrow key, crop_pixel_share = its share.
     crop_mode: composition
+    # Optional "detail" layer on finer H3 cells (same cell format); at res 5 the whole bbox is about one cell.
+    detail_resolution: 8
+    # Quoted in validation as written. Source: D:/carver-data/transfer_2020/transfer_2020.json (2026-11-14).
+    checks:
+      - "перенос на 2020 (тот же bbox, другой год; модель NDVI+SWIR без history, обучена на всех пикселях 2021, CDL 2020 как правда): accuracy 0.86 на сельхоз-пикселях, 0.70 по bbox, precision fallow по bbox 0.53; с history не проверено — нет CDL 2018"
+      - "другие регионы не проверялись"

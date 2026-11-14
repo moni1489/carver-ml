@@ -2,17 +2,17 @@
   "path": "data/ml/az.json",
   "crop_mode": "composition",
   "h3_resolution": 5,
-  "config_sha256": "190c45bd73d6bf6f5dbf962742da3cccaf6a8a3d3d2543fa55c92c9d69c62224",
+  "config_sha256": "b85ecb2cba7f7f778b904489cbd8acf53f4738680529de29928dd6e735e8567f",
   "cells_written": {
     "8548e943fffffff": {
       "n_pixels_in_bbox": 239706,
       "cell_area_km2": 293.9,
       "group_shares": {
-        "fallow_idle": 0.306,
-        "alfalfa": 0.202,
-        "corn": 0.191,
-        "other": 0.17,
-        "cotton": 0.13,
+        "fallow_idle": 0.286,
+        "alfalfa": 0.203,
+        "corn": 0.19,
+        "other": 0.189,
+        "cotton": 0.131,
         "small_grains": 0.001
       }
     }
@@ -27,11 +27,7 @@
   "groups_without_furrow_key": [],
   "groups_below_precision": {
     "small_grains": {
-      "precision_bbox": 0.1667,
-      "min_precision": 0.7
-    },
-    "fallow_idle": {
-      "precision_bbox": 0.695,
+      "precision_bbox": 0.1454,
       "min_precision": 0.7
     }
   },
