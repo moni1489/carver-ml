@@ -2,7 +2,7 @@
 
 ## Итог по bbox B, 2021 (признаки NDVI + SWIR + history)
 
-Источник: `reports/bboxB_2021/` (`summary_2021.json`, `class_metrics_2021.csv`, `buffer_sweep_summary_2021.csv`), запуск 2026-11-14, `config_sha256` b85ecb2c…
+Источник: `reports/bboxB_2021/` (`summary_2021.json`, `class_metrics_2021.csv`, `buffer_sweep_summary_2021.csv`), запуск 2026-11-14, `config_sha256` 5432d58a…
 
 **Признаки:** `features: [ndvi, swir, history]`. На каждую из 22 дат берутся NDVI, B06 (SWIR1), B07 (SWIR2) и NDMI (88 признаков). К ним добавлены 3 признака history: была ли точка пашней по CDL 2019 и 2020 и сумма этих двух флагов, всего 91 признак. CDL 2021 в признаки не входит: это метки. Модель: RandomForest, пространственная CV 3 × 3, основной буфер 30 px, решающее правило argmax. Отчёты NDVI + SWIR лежат в `reports/_archive/bboxB_2021_ndvi_swir/`. Сравнение вариантов: `reports/bboxB_2021/experiments/history/`.
 

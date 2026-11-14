@@ -2,7 +2,7 @@
   "path": "data/ml/az.json",
   "crop_mode": "composition",
   "h3_resolution": 5,
-  "config_sha256": "b85ecb2cba7f7f778b904489cbd8acf53f4738680529de29928dd6e735e8567f",
+  "config_sha256": "5432d58ac07fea6f7cc0247ee03135f5693eea8d24e648c2f83e40daf880c95f",
   "cells_written": {
     "8548e943fffffff": {
       "n_pixels_in_bbox": 239706,

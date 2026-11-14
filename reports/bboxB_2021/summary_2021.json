@@ -13,7 +13,7 @@
   "buffer_px": 30,
   "decision_rule": "argmax",
   "min_proba": {},
-  "config_sha256": "b85ecb2cba7f7f778b904489cbd8acf53f4738680529de29928dd6e735e8567f",
+  "config_sha256": "5432d58ac07fea6f7cc0247ee03135f5693eea8d24e648c2f83e40daf880c95f",
   "features": [
     "ndvi",
     "swir",

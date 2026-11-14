@@ -12,8 +12,9 @@ agricultural_groups: [alfalfa, cotton, small_grains, corn, fallow_idle]
 # Export only (pixel summary parquet). Per-class F1 in reports stays on the original groups.
 export_merge:
   other_crop: [small_grains, corn]
-# Export flag: pixels predicted as these groups get low_confidence=true (fallow F1 is weak on bbox).
-low_confidence_groups: [fallow_idle]
+# Export flag: pixels predicted as these groups get low_confidence=true. Empty since history (2026-11-14):
+# fallow_idle bbox precision 0.865 (was 0.695, flagged then).
+low_confidence_groups: []
 # features: history. CDL codes counted as cultivated (crops incl. alfalfa/hay, orchards, double crops, fallow 61):
 # 1-61, 66-77, 204-254. Everything else (pasture 62, forest, shrubland 152, grassland 176, developed 121-124,
 # barren 131, water 111, wetlands) is 0; code 0 (no data) is missing.
