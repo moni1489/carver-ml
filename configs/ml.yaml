@@ -16,6 +16,8 @@ thresholds:
   bare_soil_ndvi: 0.2    # NDVI ниже этого считаем голой почвой
 weights: {}
 baseline:
+  # bbox A: this clip is not on the PC (D:/carver-data/cdl has only bboxB/). Recreate it with
+  # python -m fs_ml.cdl clip after adding cdl_source here; until then the bbox A baseline does not run.
   cdl_path: D:/carver-data/cdl/az_2021_cdl.tif
   hls_dir: D:/carver-data/hls
   output_dir: D:/carver-data/baseline
@@ -25,8 +27,11 @@ baseline:
   fmask_band: Fmask
   # HLS v2.0 Fmask bits (LP DAAC User Guide, Table 9): 1 cloud, 2 adjacent to cloud/shadow, 3 cloud shadow.
   cloud_bits: [1, 2, 3]
-  # NDVI value for pixels with no valid observation; RandomForest cannot take NaN in this setup.
-  missing_fill: -2.0
+  # A date is dropped whole if fewer than this share of in-bbox pixels are clear (Fmask bits 1-3 unset,
+  # B04 and B05 > 0). Remaining per-pixel gaps stay NaN (RandomForest handles NaN); nothing is filled.
+  min_date_clear_share: 0.5
+  # A pixel enters training and metrics if clear kept dates >= ceil(min_clear_fraction * n_kept_dates).
+  min_clear_fraction: 0.5
   spatial_blocks: 3
   buffer_px: 30          # ~900 m at 30 m resolution
   max_train_per_class: 10000

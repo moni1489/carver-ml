@@ -1,0 +1,31 @@
+{
+  "path": "data/ml/az.json",
+  "h3_resolution": 5,
+  "config_sha256": "0a47e7d7042115d6c9d8c12850625a6e5d574027e224762db3b0749c6f2a78a7",
+  "cells_written": {},
+  "cells_centre_outside_bbox": [
+    "8548e947fffffff",
+    "8548e94bfffffff",
+    "8548e94ffffffff",
+    "8548e957fffffff"
+  ],
+  "skipped_reasons": {
+    "8548e943fffffff": "доминирующая группа fallow_idle (0.320): precision по bbox 0.598 не выше порога 0.7, ячейка не записана"
+  },
+  "groups_without_furrow_key": [
+    "alfalfa",
+    "small_grains",
+    "corn",
+    "other"
+  ],
+  "groups_below_precision": {
+    "fallow_idle": {
+      "precision_bbox": 0.5979,
+      "min_precision": 0.7
+    }
+  },
+  "furrow_keys": {
+    "cotton": "cotton",
+    "fallow_idle": "fallow"
+  }
+}

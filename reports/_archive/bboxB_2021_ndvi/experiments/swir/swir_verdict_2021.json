@@ -1,0 +1,9 @@
+{
+  "fallow_idle_precision_bbox_swir": 0.6950354609929078,
+  "crop_f1_drop_vs_ndvi": {
+    "f1_alfalfa_agri": -0.010896458633216421,
+    "f1_cotton_agri": -0.006663152890242552,
+    "f1_corn_agri": -0.0021909492934929498
+  },
+  "preview_condition_met": false
+}

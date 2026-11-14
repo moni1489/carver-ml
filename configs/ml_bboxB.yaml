@@ -1,4 +1,5 @@
-# bboxB: 500x500 px window inside HLS tile T12SVB with 53.6% agri CDL 2021 (alfalfa, cotton, small grains, corn).
+# bboxB: 578x580 px window (~17 km) on the HLS grid; west edge clipped by the tile edge (~5 px),
+# grid_clipped_to_tile_edge = true. Window inside HLS tile T12SVB with 53.6% agri CDL 2021 (alfalfa, cotton, small grains, corn).
 # Found by a sliding-window search over CDL 2021 (stride 5 px); windows of 700 px and larger never reach 40% agri.
 ingest:
   short_name: HLSL30
@@ -6,8 +7,11 @@ ingest:
   bbox: [-112.07088, 32.87118, -111.88474, 33.0262]
   temporal: ["2021-04-01", "2021-10-31"]
   count: 100
-  # Same 8 scenes as the first AZ bbox: HLS granules cover the whole tile, so no new download is needed.
-  dates: ["2021-04-21", "2021-05-16", "2021-06-01", "2021-06-24", "2021-07-26", "2021-08-27", "2021-09-21", "2021-10-14"]
+  # All 27 HLS L30 v2.0 scenes of tile T12SVB in the season (files in local_path, one tile only).
+  dates: ["2021-04-05", "2021-04-14", "2021-04-21", "2021-04-30", "2021-05-07", "2021-05-16", "2021-05-23",
+          "2021-06-01", "2021-06-08", "2021-06-17", "2021-06-24", "2021-07-03", "2021-07-10", "2021-07-19",
+          "2021-07-26", "2021-08-04", "2021-08-11", "2021-08-20", "2021-08-27", "2021-09-05", "2021-09-12",
+          "2021-09-21", "2021-09-28", "2021-10-07", "2021-10-14", "2021-10-23", "2021-10-30"]
   max_download_mb: 1500
   local_path: D:/carver-data/hls
 features: {}
@@ -16,16 +20,34 @@ thresholds:
   bare_soil_ndvi: 0.2
 weights: {}
 baseline:
-  cdl_path: D:/carver-data/cdl/t12svb_2021_cdl.tif
+  # CDL 2021 clipped to the bbox on the HLS grid (python -m fs_ml.cdl clip). Built from cdl_source.
+  cdl_path: D:/carver-data/cdl/bboxB/2021.tif
+  cdl_source:
+    zip_path: D:/2021_30m_cdls.zip
+    member: 2021_30m_cdls.tif
+    # Window is cut in the native CDL CRS, then resampled with nearest onto the HLS grid.
+    crs: EPSG:5070
+    margin_px: 8
+  # National CDL archives checked with zipfile.testzip (python -m fs_ml.cdl check).
+  cdl_archives: [D:/2021_30m_cdls.zip, D:/2020_30m_cdls.zip, D:/2019_30m_cdls.zip]
   hls_dir: D:/carver-data/hls
   output_dir: D:/carver-data/baseline_bboxB
   reports_dir: reports/bboxB_2021
   nir_band: B05
   red_band: B04
   fmask_band: Fmask
+  # Features per kept date: [ndvi] (default, current results) or [ndvi, swir] (adds SWIR1, SWIR2, NDMI).
+  # SWIR on since 2026-11-14 (reports/bboxB_2021/experiments/swir/); NDVI-only reports: reports/_archive/bboxB_2021_ndvi/.
+  features: [ndvi, swir]
+  swir1_band: B06
+  swir2_band: B07
   # HLS v2.0 Fmask bits (LP DAAC User Guide, Table 9): 1 cloud, 2 adjacent to cloud/shadow, 3 cloud shadow.
   cloud_bits: [1, 2, 3]
-  missing_fill: -2.0
+  # A date is dropped whole if fewer than this share of in-bbox pixels are clear (Fmask bits 1-3 unset,
+  # B04 and B05 > 0). Remaining per-pixel gaps stay NaN (RandomForest handles NaN); nothing is filled.
+  min_date_clear_share: 0.5
+  # A pixel enters training and metrics if clear kept dates >= ceil(min_clear_fraction * n_kept_dates).
+  min_clear_fraction: 0.5
   spatial_blocks: 3
   buffer_px: 30
   max_train_per_class: 10000
@@ -36,8 +58,43 @@ baseline:
     class_weight: balanced
   # Buffer sensitivity of the spatial CV (python -m fs_ml.sweep). buffer_px above stays the main protocol.
   buffer_sweep: [30, 90, 150]
+  # Stop before export if agri F1 (macro or any agri class) drops by more than this from the smallest
+  # to the largest buffer of buffer_sweep.
+  buffer_max_f1_drop: 0.15
+  # Left out of the stop rule (too few pixels); still reported as a separate row with its pixel count.
+  buffer_rule_exclude_groups: [small_grains]
+  # Decision rule on out-of-fold probabilities: a group below its probability goes to the next class.
+  # Tested fallow_idle 0.5/0.6/0.7 (reports/bboxB_2021/experiments/exp1_fallow_2021.csv): precision up, F1 down
+  # (bbox fallow F1 0.673 -> 0.653/0.584/0.429). Off; set e.g. {fallow_idle: 0.6} to enable.
+  min_proba: {}
+  # Desert mask (variant 2): season max NDVI over clear dates below this forbids desert_excluded_groups. null = off.
+  # Tested 0.15/0.2/0.25: fallow precision and F1 both fall (CDL fallow is itself low-NDVI). Off.
+  desert_max_ndvi: null
+  desert_excluded_groups: [fallow_idle]
+  # python -m fs_ml.experiments: grids for the fallow rule and the clear-date share.
+  experiments:
+    threshold_group: fallow_idle
+    min_proba_grid: [0.5, 0.6, 0.7]
+    desert_max_ndvi_grid: [0.15, 0.2, 0.25]
+    date_clear_share_grid: [0.5, 0.3]
+    # --swir (NDVI vs NDVI+SWIR): Furrow preview only if fallow bbox precision >= this and crop F1 drop <= that.
+    swir_preview_min_precision: 0.7
+    swir_preview_max_crop_drop: 0.01
   # Groups whose false negatives and false positives are highlighted on the error map.
   error_map_groups: [fallow_idle, alfalfa]
 export:
   schema_path: contracts/schema.json
   sample_path: examples/sample_output.json
+  # Furrow layer (data/ml/<region>.json, see docs/furrow_compat.md). Only H3 cells that intersect ingest.bbox.
+  furrow:
+    path: data/ml/az.json
+    h3_resolution: 5
+    model: fs_ml RandomForest NDVI+SWIR baseline (HLS L30, CDL 2021 labels)
+    version: "2026-11-14"
+    # Bbox precision a group needs to be confident (applies to every group except other).
+    # dominant: a cell whose top group is not above it is not written; composition: such groups are marked
+    # "(низкая достоверность)" and never give crop_p.
+    min_precision: 0.7
+    # composition: crop = "alfalfa 20%, corn 19%, fallow 32% (низкая достоверность)", crop_p = share of the largest
+    # confident group; dominant: crop = one Furrow key, crop_pixel_share = its share.
+    crop_mode: composition

@@ -8,6 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
     "earthaccess>=0.19",
+    "h3>=4.1",
     "matplotlib>=3.9",
     "pandas>=2.2",
     "pyarrow>=17",
@@ -34,7 +35,8 @@ testpaths = ["tests"]
 [tool.ruff.lint.per-file-ignores]
 "src/fs_ml/baseline.py" = ["E402"]
 "src/fs_ml/sweep.py" = ["E402"]
+"src/fs_ml/experiments.py" = ["E402"]
 
 [[tool.mypy.overrides]]
-module = ["rasterio.*", "sklearn.*", "matplotlib.*", "pyarrow.*", "pandas.*", "earthaccess.*", "rioxarray.*"]
+module = ["rasterio.*", "sklearn.*", "matplotlib.*", "pyarrow.*", "pandas.*", "earthaccess.*", "rioxarray.*", "h3.*"]
 ignore_missing_imports = true

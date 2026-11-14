@@ -1,0 +1,10 @@
+{
+  "fallow_idle": {
+    "false_negative": 14682,
+    "false_positive": 27788
+  },
+  "alfalfa": {
+    "false_negative": 6074,
+    "false_positive": 8602
+  }
+}

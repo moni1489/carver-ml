@@ -14,3 +14,8 @@ export_merge:
   other_crop: [small_grains, corn]
 # Export flag: pixels predicted as these groups get low_confidence=true (fallow F1 is weak on bbox).
 low_confidence_groups: [fallow_idle]
+# Furrow crop keys (pipeline/crops.py, see docs/furrow_compat.md). Groups without a key here are not exported:
+# alfalfa and corn have no Furrow key; small_grains mixes barley (Furrow `barley`) and durum (`durum`).
+furrow_keys:
+  cotton: cotton
+  fallow_idle: fallow

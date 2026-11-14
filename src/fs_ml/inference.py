@@ -44,6 +44,7 @@ def pixel_summary(
             "col": cols,
             "lon": np.asarray(lon, dtype=np.float64),
             "lat": np.asarray(lat, dtype=np.float64),
+            "in_bbox": stack.in_bbox,
             "dominant_crop": crop,
             "dominant_crop_export": crop_export,
             "low_confidence": low_conf,
