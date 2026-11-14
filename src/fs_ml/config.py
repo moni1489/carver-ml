@@ -124,6 +124,8 @@ class FurrowExport(BaseModel):
     # Checks run outside the main CV (e.g. another year), quoted in `validation` as written.
     # Empty = "другие регионы и годы не проверялись".
     checks: list[str] = Field(default_factory=list)
+    # The same checks in English for validation_en (empty = "other regions and years not checked").
+    checks_en: list[str] = Field(default_factory=list)
 
 
 class ExportConfig(BaseModel):

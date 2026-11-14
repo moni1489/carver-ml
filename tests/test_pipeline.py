@@ -48,6 +48,7 @@ from fs_ml.furrow import (
     composition_text,
     low_confidence_notes,
     validation_text,
+    validation_text_en,
 )
 from fs_ml.models import decide, decision_rule_text, usable_mask
 
@@ -523,3 +524,17 @@ def test_validation_text_quotes_checks_instead_of_not_checked_note() -> None:
     checked = validation_text(summary, _baseline(), _crops(), [], bbox, 2021, "HLSL30", ["перенос на 2020: 0.86"])
     assert checked.endswith("перенос на 2020: 0.86")
     assert "не проверялись" not in checked
+
+
+def test_validation_text_en_numbers_and_checks() -> None:
+    summary = {
+        "macro_f1_agri_truth": 0.73, "macro_f1_rule_agri_truth": 0.9, "accuracy_agri_truth": 0.89,
+        "accuracy_bbox": 0.86, "majority_baseline_bbox": 0.25, "buffer_px": 30, "dates_used": 22, "dates": 27,
+    }
+    bbox = (0.0, 0.0, 1.0, 1.0)
+    text = validation_text_en(summary, _baseline(), _crops(), {}, bbox, 2021, "HLSL30", [2019, 2020], {7: ["2021-07-26"]})
+    assert "accuracy 0.89 on cropland pixels and 0.86" in text
+    assert "years 2019–2020 are USDA CDL (fact), 2021 is the model's prediction" in text
+    assert "month(s) 07" in text and text.endswith("other regions and years not checked")
+    checked = validation_text_en(summary, _baseline(), _crops(), {}, bbox, 2021, "HLSL30", [], {}, ["2020: 0.86"])
+    assert checked.endswith("2020: 0.86") and "USDA CDL (fact)" not in checked

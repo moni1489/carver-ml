@@ -83,6 +83,7 @@ class FurrowLayer(BaseModel):
     model: str
     version: str
     validation: str
+    validation_en: str | None = Field(default=None, description="short English version of validation for the app")
     cells: dict[str, FurrowCell | CompositionCell]
     detail: DetailLayer | None = None
 
@@ -431,6 +432,54 @@ def validation_text(
     return "; ".join(parts)
 
 
+_FEATURES_EN = {"ndvi": "NDVI", "swir": "SWIR1, SWIR2 and NDMI"}
+
+
+def validation_text_en(
+    summary: dict[str, Any],
+    bcfg: BaselineConfig,
+    crops: CropsConfig,
+    blocked: dict[str, dict[str, float]],
+    bbox: tuple[float, float, float, float],
+    year: int,
+    sensor: str,
+    history: list[int],
+    low_obs: dict[int, list[str]],
+    checks_en: list[str] | None = None,
+) -> str:
+    """Short English validation for the app (Russian `validation` stays the full record); numbers from the summary."""
+    blocks = bcfg.spatial_blocks
+    feats = [_FEATURES_EN[f] for f in bcfg.features if f in _FEATURES_EN]
+    if "history" in bcfg.features and history:
+        feats.append(f"whether the pixel was cultivated in USDA CDL {', '.join(map(str, history))}")
+    excluded = bcfg.buffer_rule_exclude_groups
+    rule = f", {summary['macro_f1_rule_agri_truth']:.2f} without {', '.join(excluded)}" if excluded else ""
+    parts = [
+        (
+            f"Checked against USDA CDL {year} on areas the model did not see: spatial block cross-validation "
+            f"{blocks}x{blocks} with a {summary['buffer_px']} px buffer"
+        ),
+        (
+            f"accuracy {summary['accuracy_agri_truth']:.2f} on cropland pixels and {summary['accuracy_bbox']:.2f} "
+            f"over the whole window (always guessing the most common class: {summary['majority_baseline_bbox']:.2f})"
+        ),
+        f"macro F1 over {len(crops.agricultural_groups)} crop groups {summary['macro_f1_agri_truth']:.2f}{rule}",
+        f"inputs: {sensor} {year}, {summary['dates_used']} of {summary['dates']} dates; features: "
+        + "; ".join(feats),
+        f"one window only, bbox {list(bbox)}",
+    ]
+    if blocked:
+        weak = ", ".join(f"{crops.furrow_keys.get(g, g)} (precision {v['precision_bbox']:.2f})" for g, v in blocked.items())
+        parts.append(f"low confidence: {weak}")
+    if history:
+        parts.append(f"years {history[0]}–{history[-1]} are USDA CDL (fact), {year} is the model's prediction")
+    parts.append("a month counts as bare when NDVI < 0.2 on at least half of its clear images")
+    if low_obs:
+        parts.append(f"too few clear images in month(s) {', '.join(f'{m:02d}' for m in sorted(low_obs))}")
+    parts += checks_en or ["other regions and years not checked"]
+    return "; ".join(parts)
+
+
 def build_layer(
     ml: MLConfig,
     crops: CropsConfig,
@@ -478,6 +527,10 @@ def build_layer(
         version=furrow.version,
         validation=validation_text(
             summary, ml.baseline, crops, notes, ml.ingest.bbox, year, ml.ingest.short_name, furrow.checks
+        ),
+        validation_en=validation_text_en(
+            summary, ml.baseline, crops, blocked, ml.ingest.bbox, year, ml.ingest.short_name,
+            history_years(pixels), low_obs or {}, furrow.checks_en,
         ),
         cells=cells,
         detail=detail,

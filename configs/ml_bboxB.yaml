@@ -114,3 +114,6 @@ export:
     checks:
       - "перенос на 2020 (тот же bbox, другой год; модель NDVI+SWIR без history, обучена на всех пикселях 2021, CDL 2020 как правда): accuracy 0.86 на сельхоз-пикселях, 0.70 по bbox, precision fallow по bbox 0.53; с history не проверено — нет CDL 2018"
       - "другие регионы не проверялись"
+    checks_en:
+      - "transfer to 2020 (same window, another year; NDVI+SWIR model without history, trained on all 2021 pixels, CDL 2020 as truth): accuracy 0.86 on cropland pixels, 0.70 over the window, fallow precision 0.53; not checked with history (no CDL 2018)"
+      - "other regions not checked"
