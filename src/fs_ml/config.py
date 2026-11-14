@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from fs_ml.data import IngestConfig
 
-FeatureSet = Literal["ndvi", "swir"]
+FeatureSet = Literal["ndvi", "swir", "history"]
 
 
 def _default_features() -> list[FeatureSet]:
@@ -42,10 +42,18 @@ class ExperimentConfig(BaseModel):
     min_proba_grid: list[float] = Field(min_length=1)
     desert_max_ndvi_grid: list[float] = Field(min_length=1)
     date_clear_share_grid: list[float] = Field(min_length=1)
-    # --swir: show the Furrow preview only if the threshold group reaches this bbox precision
-    # and no crop F1 (agri pixels) drops by more than swir_preview_max_crop_drop against NDVI only.
-    swir_preview_min_precision: float = Field(gt=0, le=1)
-    swir_preview_max_crop_drop: float = Field(ge=0)
+    # --swir / --history: show the Furrow preview only if the threshold group reaches this bbox precision
+    # and no crop F1 (agri pixels) drops by more than preview_max_crop_drop against the reference variant.
+    preview_min_precision: float = Field(gt=0, le=1)
+    preview_max_crop_drop: float = Field(ge=0)
+
+
+class HistoryCdl(BaseModel):
+    """CDL of a previous year: clipped from `source` onto the HLS grid at `path` (python -m fs_ml.cdl clip-history)."""
+
+    year: int
+    path: Path
+    source: CdlSource
 
 
 class BaselineConfig(BaseModel):
@@ -62,6 +70,8 @@ class BaselineConfig(BaseModel):
     features: list[FeatureSet] = Field(default_factory=_default_features)
     swir1_band: str | None = None
     swir2_band: str | None = None
+    # features: history -> cultivated flag per previous-year CDL (ordered by year) and their sum.
+    history_cdl: list[HistoryCdl] = Field(default_factory=list)
     cloud_bits: list[int] = Field(min_length=1)
     min_date_clear_share: float = Field(gt=0, le=1)
     min_clear_fraction: float = Field(gt=0, le=1)
@@ -88,6 +98,10 @@ class BaselineConfig(BaseModel):
             raise ValueError(f"features должен содержать ndvi без повторов, сейчас {self.features}")
         if "swir" in self.features and (self.swir1_band is None or self.swir2_band is None):
             raise ValueError("для features: swir нужны swir1_band и swir2_band")
+        if "history" in self.features and not self.history_cdl:
+            raise ValueError("для features: history нужен history_cdl")
+        if any(h.path == self.cdl_path for h in self.history_cdl):
+            raise ValueError("history_cdl не может включать cdl_path: это метки")
         return self
 
 
@@ -125,6 +139,8 @@ class CropsConfig(BaseModel):
     groups: dict[str, list[int]]
     agricultural_groups: list[str]
     export_merge: dict[str, list[str]] = Field(default_factory=dict)
+    # CDL codes counted as cultivated (crop or fallow/idle) for features: history, as inclusive [low, high] ranges.
+    cultivated_codes: list[tuple[int, int]] = Field(default_factory=list)
     low_confidence_groups: list[str] = Field(default_factory=list)
     furrow_keys: dict[str, str] = Field(default_factory=dict)
 
@@ -162,13 +178,18 @@ def baseline_fingerprint(ml: MLConfig, crops: CropsConfig) -> str:
     Taken from the parsed configs, so comments and key order do not change it. Left out: baseline.experiments
     (separate runs), the export section and crops.furrow_keys (read by the exporter itself).
     """
+    # Settings of feature sets that are switched off do not enter the hash, so adding them to the configs
+    # keeps reports made without them valid.
     excluded = {"experiments"}
+    crops_excluded = {"furrow_keys"}
     if ml.baseline.features == ["ndvi"]:
-        # Default feature set: hash as before these fields existed, so NDVI-only reports stay valid.
         excluded |= {"features", "swir1_band", "swir2_band"}
+    if "history" not in ml.baseline.features:
+        excluded.add("history_cdl")
+        crops_excluded.add("cultivated_codes")
     payload = {
         "ingest": ml.ingest.model_dump(mode="json"),
         "baseline": ml.baseline.model_dump(mode="json", exclude=excluded),
-        "crops": crops.model_dump(mode="json", exclude={"furrow_keys"}),
+        "crops": crops.model_dump(mode="json", exclude=crops_excluded),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()

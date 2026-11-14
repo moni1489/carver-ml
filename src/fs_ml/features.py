@@ -49,7 +49,8 @@ class PixelStack:
     dropped_dates: list[date]  # dates removed whole because clear share < min_date_clear_share
     cdl: np.ndarray  # (N,) uint8, raw CDL code
     labels: np.ndarray  # (N,) int16, label index or -1
-    # Extra per-date layers on kept dates, (N, T) float32 with NaN gaps: "swir1", "swir2", "ndmi" for features: swir.
+    # Extra layers, float32 with NaN gaps: "swir1", "swir2", "ndmi" (N, T kept dates) for features: swir;
+    # "history" (N, n_years + 1): cultivated flag per previous-year CDL, then their sum, for features: history.
     extra: dict[str, np.ndarray] = field(default_factory=dict)
 
 
@@ -176,7 +177,7 @@ def swir_masked(
 
 
 def feature_matrix(stack: "PixelStack", features: list[str]) -> np.ndarray:
-    """Model inputs (N, F): NDVI per kept date, then SWIR1, SWIR2 and NDMI per kept date if features has swir."""
+    """Model inputs (N, F): NDVI per kept date; SWIR1, SWIR2, NDMI per kept date (swir); cultivated history (history)."""
     if features == ["ndvi"]:
         return stack.ndvi
     blocks = [stack.ndvi]
@@ -185,7 +186,35 @@ def feature_matrix(stack: "PixelStack", features: list[str]) -> np.ndarray:
         if missing:
             raise RuntimeError(f"в стеке нет слоёв {missing}: собери стек с features, содержащим swir")
         blocks += [stack.extra["swir1"], stack.extra["swir2"], stack.extra["ndmi"]]
+    if "history" in features:
+        if "history" not in stack.extra:
+            raise RuntimeError("в стеке нет слоя history: собери стек с features, содержащим history")
+        blocks.append(stack.extra["history"])
     return np.ascontiguousarray(np.hstack(blocks), dtype=np.float32)
+
+
+def cultivated_lut(ranges: list[tuple[int, int]]) -> np.ndarray:
+    """CDL code -> 1.0 cultivated, 0.0 not cultivated, NaN for code 0 (no data)."""
+    if not ranges:
+        raise ValueError("cultivated_codes пуст")
+    lut = np.zeros(256, dtype=np.float32)
+    for low, high in ranges:
+        if not 0 < low <= high <= 255:
+            raise ValueError(f"неверный диапазон кодов CDL: {(low, high)}")
+        lut[low : high + 1] = 1.0
+    lut[0] = np.nan
+    return lut
+
+
+def history_features(previous: list[np.ndarray], lut: np.ndarray) -> np.ndarray:
+    """(N, n_years + 1): cultivated flag of each previous-year CDL (raw codes, flattened), then their sum.
+
+    The sum is NaN if any year has no data, so a missing year is never read as "not cultivated".
+    """
+    flags = [lut[codes.ravel()] for codes in previous]
+    stacked = np.column_stack(flags)
+    total = stacked.sum(axis=1)
+    return np.column_stack([stacked, total]).astype(np.float32)
 
 
 def min_clear_dates(fraction: float, n_dates: int) -> int:
@@ -242,6 +271,11 @@ def build_stack(
     cdl = cdl_on_grid(cfg.cdl_path, grid)
     space = label_space(crops)
     labels = space.lut[cdl]
+    history: np.ndarray | None = None
+    if "history" in cfg.features:
+        lut = cultivated_lut(crops.cultivated_codes)
+        previous = [cdl_on_grid(h.path, grid) for h in sorted(cfg.history_cdl, key=lambda h: h.year)]
+        history = history_features(previous, lut)
 
     lon, lat = pixel_lonlat(grid)
     in_bbox = inside_bbox(lon, lat, bbox)
@@ -278,7 +312,10 @@ def build_stack(
         dropped_dates=[d for d, k in zip(ordered, keep, strict=True) if not k],
         cdl=cdl.ravel(),
         labels=labels.ravel(),
-        extra={k: np.ascontiguousarray(v[:, keep]) for k, v in swir_layers.items()} if use_swir else {},
+        extra={
+            **({k: np.ascontiguousarray(v[:, keep]) for k, v in swir_layers.items()} if use_swir else {}),
+            **({"history": history} if history is not None else {}),
+        },
     )
 
 

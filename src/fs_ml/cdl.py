@@ -1,6 +1,7 @@
 """National CDL: archive integrity check and bbox clip onto the HLS grid, read in place from the zip."""
 
 import argparse
+import os
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,7 +14,7 @@ from rasterio.warp import reproject, transform_bounds
 from rasterio.windows import Window, from_bounds
 
 from fs_ml.config import CdlSource, load_ml_config
-from fs_ml.features import Grid, bbox_grid, scene_files
+from fs_ml.features import Grid, bbox_grid, grid_mismatch, scene_files
 
 # CDL code 0 is "background / no data" in the USDA legend.
 _CDL_NODATA = 0
@@ -116,9 +117,31 @@ def clip_to_grid(source: CdlSource, grid: Grid, out_path: Path) -> ClipResult:
     )
 
 
+def clip_if_missing(source: CdlSource, grid: Grid, out_path: Path) -> str:
+    """Clip only if `out_path` does not exist; never overwrite an existing clip (another job may use it).
+
+    An existing clip on the HLS grid is reused; on another grid it raises. New clips are written to a temporary
+    file and renamed, so a parallel reader never sees a half-written file.
+    """
+    if out_path.exists():
+        with rasterio.open(out_path) as ds:
+            problems = grid_mismatch(ds.crs, ds.transform, (ds.height, ds.width), grid)
+        if problems:
+            raise RuntimeError(f"{out_path} уже есть, но не на сетке HLS ({'; '.join(problems)}); не перезаписываю")
+        return "уже был, на сетке HLS, использую"
+    tmp = out_path.with_name(f".{out_path.stem}.{os.getpid()}.tmp.tif")
+    clip_to_grid(source, grid, tmp)
+    try:
+        os.rename(tmp, out_path)  # Windows: fails if another job created out_path meanwhile
+    except FileExistsError:
+        tmp.replace(out_path.with_name(f".{out_path.stem}.{os.getpid()}.unused.tif"))
+        return clip_if_missing(source, grid, out_path)
+    return "создан"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="CDL archive check and bbox clip onto the HLS grid.")
-    parser.add_argument("command", choices=["check", "clip"])
+    parser.add_argument("command", choices=["check", "clip", "clip-history"])
     parser.add_argument("config", type=Path, help="путь к configs/ml_bboxB.yaml")
     args = parser.parse_args()
     ml = load_ml_config(args.config)
@@ -134,12 +157,18 @@ def main() -> None:
             raise SystemExit(1)
         return
 
-    if bcfg.cdl_source is None:
-        raise ValueError(f"{args.config}: нет baseline.cdl_source")
     bands = [bcfg.nir_band, bcfg.red_band, bcfg.fmask_band]
     files = scene_files(bcfg.hls_dir, ml.ingest.dates, bands)
     reference = files[min(files)][bcfg.nir_band]
     grid = bbox_grid(reference, ml.ingest.bbox)
+    if args.command == "clip-history":
+        if not bcfg.history_cdl:
+            raise ValueError(f"{args.config}: baseline.history_cdl пуст")
+        for item in sorted(bcfg.history_cdl, key=lambda h: h.year):
+            print(f"{item.year}: {item.path}: {clip_if_missing(item.source, grid, item.path)}")
+        return
+    if bcfg.cdl_source is None:
+        raise ValueError(f"{args.config}: нет baseline.cdl_source")
     result = clip_to_grid(bcfg.cdl_source, grid, bcfg.cdl_path)
     print(f"HLS grid: {grid.shape}, crs {grid.crs}, clipped to tile edge: {grid.clipped_to_raster}")
     print(f"CDL window ({bcfg.cdl_source.crs}): {result.source_window}")

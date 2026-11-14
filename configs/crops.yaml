@@ -14,6 +14,10 @@ export_merge:
   other_crop: [small_grains, corn]
 # Export flag: pixels predicted as these groups get low_confidence=true (fallow F1 is weak on bbox).
 low_confidence_groups: [fallow_idle]
+# features: history. CDL codes counted as cultivated (crops incl. alfalfa/hay, orchards, double crops, fallow 61):
+# 1-61, 66-77, 204-254. Everything else (pasture 62, forest, shrubland 152, grassland 176, developed 121-124,
+# barren 131, water 111, wetlands) is 0; code 0 (no data) is missing.
+cultivated_codes: [[1, 61], [66, 77], [204, 254]]
 # Furrow crop keys (pipeline/crops.py, see docs/furrow_compat.md). Groups without a key here are not exported:
 # alfalfa and corn have no Furrow key; small_grains mixes barley (Furrow `barley`) and durum (`durum`).
 furrow_keys:

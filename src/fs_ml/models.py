@@ -96,13 +96,20 @@ def decide(proba: np.ndarray, stack: PixelStack, space: LabelSpace, cfg: Baselin
 
 
 def n_features(cfg: BaselineConfig, n_dates: int) -> int:
-    """Model inputs per pixel: NDVI per date, plus SWIR1, SWIR2 and NDMI per date for features: swir."""
-    return n_dates * (4 if "swir" in cfg.features else 1)
+    """Model inputs per pixel: NDVI per date; + SWIR1, SWIR2, NDMI per date (swir); + cultivated history (history)."""
+    total = n_dates * (4 if "swir" in cfg.features else 1)
+    if "history" in cfg.features:
+        total += len(cfg.history_cdl) + 1
+    return total
 
 
 def feature_text(cfg: BaselineConfig, n_dates: int) -> str:
     layers = "NDVI+SWIR1+SWIR2+NDMI" if "swir" in cfg.features else "NDVI"
-    return f"{layers} по {n_dates} датам ({n_features(cfg, n_dates)})"
+    text = f"{layers} по {n_dates} датам"
+    if "history" in cfg.features:
+        years = ", ".join(str(h.year) for h in sorted(cfg.history_cdl, key=lambda h: h.year))
+        text += f" + обработка по CDL {years} и их сумма"
+    return f"{text} ({n_features(cfg, n_dates)})"
 
 
 def decision_rule_text(cfg: BaselineConfig) -> str:

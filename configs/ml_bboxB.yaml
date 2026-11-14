@@ -28,6 +28,14 @@ baseline:
     # Window is cut in the native CDL CRS, then resampled with nearest onto the HLS grid.
     crs: EPSG:5070
     margin_px: 8
+  # Previous-year CDL for features: history (python -m fs_ml.cdl clip-history). Never the label year.
+  history_cdl:
+    - year: 2019
+      path: D:/carver-data/cdl/bboxB/2019.tif
+      source: {zip_path: D:/2019_30m_cdls.zip, member: 2019_30m_cdls.tif, crs: EPSG:5070, margin_px: 8}
+    - year: 2020
+      path: D:/carver-data/cdl/bboxB/2020.tif
+      source: {zip_path: D:/2020_30m_cdls.zip, member: 2020_30m_cdls.tif, crs: EPSG:5070, margin_px: 8}
   # National CDL archives checked with zipfile.testzip (python -m fs_ml.cdl check).
   cdl_archives: [D:/2021_30m_cdls.zip, D:/2020_30m_cdls.zip, D:/2019_30m_cdls.zip]
   hls_dir: D:/carver-data/hls
@@ -77,9 +85,10 @@ baseline:
     min_proba_grid: [0.5, 0.6, 0.7]
     desert_max_ndvi_grid: [0.15, 0.2, 0.25]
     date_clear_share_grid: [0.5, 0.3]
-    # --swir (NDVI vs NDVI+SWIR): Furrow preview only if fallow bbox precision >= this and crop F1 drop <= that.
-    swir_preview_min_precision: 0.7
-    swir_preview_max_crop_drop: 0.01
+    # --swir / --history: Furrow preview only if fallow bbox precision >= preview_min_precision (--history: at the
+    # largest buffer of buffer_sweep) and no crop F1 drops by more than preview_max_crop_drop.
+    preview_min_precision: 0.7
+    preview_max_crop_drop: 0.01
   # Groups whose false negatives and false positives are highlighted on the error map.
   error_map_groups: [fallow_idle, alfalfa]
 export:
