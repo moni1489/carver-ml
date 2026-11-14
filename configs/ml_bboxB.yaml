@@ -1,0 +1,43 @@
+# bboxB: 500x500 px window inside HLS tile T12SVB with 53.6% agri CDL 2021 (alfalfa, cotton, small grains, corn).
+# Found by a sliding-window search over CDL 2021 (stride 5 px); windows of 700 px and larger never reach 40% agri.
+ingest:
+  short_name: HLSL30
+  version: "2.0"
+  bbox: [-112.07088, 32.87118, -111.88474, 33.0262]
+  temporal: ["2021-04-01", "2021-10-31"]
+  count: 100
+  # Same 8 scenes as the first AZ bbox: HLS granules cover the whole tile, so no new download is needed.
+  dates: ["2021-04-21", "2021-05-16", "2021-06-01", "2021-06-24", "2021-07-26", "2021-08-27", "2021-09-21", "2021-10-14"]
+  max_download_mb: 1500
+  local_path: D:/carver-data/hls
+features: {}
+thresholds:
+  max_cloud_pct: 20
+  bare_soil_ndvi: 0.2
+weights: {}
+baseline:
+  cdl_path: D:/carver-data/cdl/t12svb_2021_cdl.tif
+  hls_dir: D:/carver-data/hls
+  output_dir: D:/carver-data/baseline_bboxB
+  reports_dir: reports/bboxB_2021
+  nir_band: B05
+  red_band: B04
+  fmask_band: Fmask
+  # HLS v2.0 Fmask bits (LP DAAC User Guide, Table 9): 1 cloud, 2 adjacent to cloud/shadow, 3 cloud shadow.
+  cloud_bits: [1, 2, 3]
+  missing_fill: -2.0
+  spatial_blocks: 3
+  buffer_px: 30
+  max_train_per_class: 10000
+  random_state: 42
+  random_forest:
+    n_estimators: 100
+    n_jobs: 1
+    class_weight: balanced
+  # Buffer sensitivity of the spatial CV (python -m fs_ml.sweep). buffer_px above stays the main protocol.
+  buffer_sweep: [30, 90, 150]
+  # Groups whose false negatives and false positives are highlighted on the error map.
+  error_map_groups: [fallow_idle, alfalfa]
+export:
+  schema_path: contracts/schema.json
+  sample_path: examples/sample_output.json

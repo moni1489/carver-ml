@@ -1,2 +1,16 @@
-# Crop catalogue. Values are filled from the project spec; no defaults are assumed here.
-crops: {}
+# CDL class groups for the baseline. Codes not listed here fall into `other_group`.
+# Code names (USDA CDL legend, for reference only): 1 corn, 2 cotton, 21 barley, 22 durum wheat,
+# 36 alfalfa, 61 fallow/idle cropland, 0 no data (excluded from training and evaluation).
+other_group: other
+groups:
+  alfalfa: [36]
+  cotton: [2]
+  small_grains: [21, 22]
+  corn: [1]
+  fallow_idle: [61]
+agricultural_groups: [alfalfa, cotton, small_grains, corn, fallow_idle]
+# Export only (pixel summary parquet). Per-class F1 in reports stays on the original groups.
+export_merge:
+  other_crop: [small_grains, corn]
+# Export flag: pixels predicted as these groups get low_confidence=true (fallow F1 is weak on bbox).
+low_confidence_groups: [fallow_idle]

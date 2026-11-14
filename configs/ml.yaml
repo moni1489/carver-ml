@@ -15,6 +15,26 @@ thresholds:
   max_cloud_pct: 20      # облачность внутри bbox по Fmask
   bare_soil_ndvi: 0.2    # NDVI ниже этого считаем голой почвой
 weights: {}
+baseline:
+  cdl_path: D:/carver-data/cdl/az_2021_cdl.tif
+  hls_dir: D:/carver-data/hls
+  output_dir: D:/carver-data/baseline
+  reports_dir: reports
+  nir_band: B05
+  red_band: B04
+  fmask_band: Fmask
+  # HLS v2.0 Fmask bits (LP DAAC User Guide, Table 9): 1 cloud, 2 adjacent to cloud/shadow, 3 cloud shadow.
+  cloud_bits: [1, 2, 3]
+  # NDVI value for pixels with no valid observation; RandomForest cannot take NaN in this setup.
+  missing_fill: -2.0
+  spatial_blocks: 3
+  buffer_px: 30          # ~900 m at 30 m resolution
+  max_train_per_class: 10000
+  random_state: 42
+  random_forest:
+    n_estimators: 100
+    n_jobs: 1
+    class_weight: balanced
 export:
   schema_path: contracts/schema.json
   sample_path: examples/sample_output.json
