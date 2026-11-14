@@ -1,0 +1,20 @@
+# ML settings: data source, windowing, thresholds and weights. Values are filled from the project spec.
+ingest:
+  short_name: HLSL30
+  version: "2.0"
+  # Arizona, Pinal/Maricopa area. Approximate: verify against the CDL map before a real run.
+  bbox: [-111.9, 32.9, -111.5, 33.2]
+  temporal: ["2021-04-01", "2021-10-31"]
+  count: 100
+  # Selected scenes, one per date (CMR cloud-cover pre-filter applied).
+  dates: ["2021-04-21", "2021-05-16", "2021-06-01", "2021-06-24", "2021-07-26", "2021-08-27", "2021-09-21", "2021-10-14"]
+  max_download_mb: 1500
+  local_path: D:/carver-data/hls
+features: {}
+thresholds:
+  max_cloud_pct: 20      # облачность внутри bbox по Fmask
+  bare_soil_ndvi: 0.2    # NDVI ниже этого считаем голой почвой
+weights: {}
+export:
+  schema_path: contracts/schema.json
+  sample_path: examples/sample_output.json

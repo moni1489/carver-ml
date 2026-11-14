@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "BareSoil": {
+      "properties": {
+        "year": {
+          "title": "Year",
+          "type": "integer"
+        },
+        "days": {
+          "maximum": 366,
+          "minimum": 0,
+          "title": "Days",
+          "type": "integer"
+        },
+        "ci_low": {
+          "maximum": 366,
+          "minimum": 0,
+          "title": "Ci Low",
+          "type": "integer"
+        },
+        "ci_high": {
+          "maximum": 366,
+          "minimum": 0,
+          "title": "Ci High",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "year",
+        "days",
+        "ci_low",
+        "ci_high"
+      ],
+      "title": "BareSoil",
+      "type": "object"
+    },
+    "CropYear": {
+      "properties": {
+        "year": {
+          "title": "Year",
+          "type": "integer"
+        },
+        "crop": {
+          "title": "Crop",
+          "type": "string"
+        },
+        "prob": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Prob",
+          "type": "number"
+        }
+      },
+      "required": [
+        "year",
+        "crop",
+        "prob"
+      ],
+      "title": "CropYear",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "field_id": {
+      "title": "Field Id",
+      "type": "string"
+    },
+    "region": {
+      "title": "Region",
+      "type": "string"
+    },
+    "model_version": {
+      "title": "Model Version",
+      "type": "string"
+    },
+    "crop_history": {
+      "items": {
+        "$ref": "#/$defs/CropYear"
+      },
+      "title": "Crop History",
+      "type": "array"
+    },
+    "bare_soil": {
+      "items": {
+        "$ref": "#/$defs/BareSoil"
+      },
+      "title": "Bare Soil",
+      "type": "array"
+    },
+    "domain_shift": {
+      "title": "Domain Shift",
+      "type": "boolean"
+    },
+    "data_gaps": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Data Gaps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "field_id",
+    "region",
+    "model_version",
+    "crop_history",
+    "bare_soil",
+    "domain_shift",
+    "data_gaps"
+  ],
+  "title": "FieldAnalysis",
+  "type": "object"
+}

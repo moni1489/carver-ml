@@ -1,0 +1,29 @@
+{
+  "field_id": "SAMPLE-FIELD-001",
+  "region": "SAMPLE-REGION",
+  "model_version": "sample",
+  "crop_history": [
+    {
+      "year": 2021,
+      "crop": "SAMPLE_CROP_A",
+      "prob": 0.5
+    },
+    {
+      "year": 2022,
+      "crop": "SAMPLE_CROP_B",
+      "prob": 0.5
+    }
+  ],
+  "bare_soil": [
+    {
+      "year": 2021,
+      "days": 30,
+      "ci_low": 20,
+      "ci_high": 40
+    }
+  ],
+  "domain_shift": false,
+  "data_gaps": [
+    "SAMPLE_GAP"
+  ]
+}

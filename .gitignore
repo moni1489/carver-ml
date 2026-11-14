@@ -1,0 +1,9 @@
+data/
+.netrc
+_netrc
+.env
+.mypy_cache/
+.ruff_cache/
+.dodsrc
+__pycache__/
+*.egg-info/

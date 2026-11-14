@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fs_ml"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "earthaccess>=0.19",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "rioxarray>=0.17",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.11", "ruff>=0.6", "types-PyYAML>=6.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+strict = true
+files = ["src/fs_ml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
