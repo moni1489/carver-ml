@@ -110,6 +110,12 @@ export:
     crop_mode: composition
     # Optional "detail" layer on finer H3 cells (same cell format); at res 5 the whole bbox is about one cell.
     detail_resolution: 8
+    # SMAP L4 root-zone moisture spread over detail cells by NDMI (fs_ml.soil_moisture): disaggregation, not a model.
+    soil_moisture:
+      cube: D:/carver-data/prithvi/bboxB_2021.npz
+      meta: D:/carver-data/prithvi/meta.json
+      smap: C:/Users/kraie/Documents/Furrow/data/raw/az.smap.json
+      max_days: 5
     # Quoted in validation as written. Source: D:/carver-data/transfer_2020/transfer_2020.json (2026-11-14).
     checks:
       - "перенос на 2020 (тот же bbox, другой год; модель NDVI+SWIR без history, обучена на всех пикселях 2021, CDL 2020 как правда): accuracy 0.86 на сельхоз-пикселях, 0.70 по bbox, precision fallow по bbox 0.53; с history не проверено — нет CDL 2018"

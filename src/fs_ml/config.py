@@ -110,6 +110,13 @@ class Thresholds(BaseModel):
     bare_soil_ndvi: float = Field(ge=-1, le=1)
 
 
+class SoilMoistureExport(BaseModel):
+    cube: Path  # HLS npz (x: T, C, H, W; in_bbox), same grid as the baseline
+    meta: Path  # its meta.json (dates, channels, transform, crs)
+    smap: Path  # Furrow data/raw/<region>.smap.json: {"dates": [...], "cells": {h3 res 5: [m3/m3]}}
+    max_days: int = Field(default=5, ge=0)
+
+
 class FurrowExport(BaseModel):
     path: Path
     h3_resolution: int = Field(ge=0, le=15)
@@ -126,6 +133,8 @@ class FurrowExport(BaseModel):
     checks: list[str] = Field(default_factory=list)
     # The same checks in English for validation_en (empty = "other regions and years not checked").
     checks_en: list[str] = Field(default_factory=list)
+    # Optional SMAP root-zone moisture spread over detail cells by NDMI (fs_ml.soil_moisture); None = not added.
+    soil_moisture: SoilMoistureExport | None = None
 
 
 class ExportConfig(BaseModel):

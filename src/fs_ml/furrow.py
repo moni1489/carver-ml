@@ -16,12 +16,14 @@ from fs_ml.config import (
     CropsConfig,
     FurrowExport,
     MLConfig,
+    SoilMoistureExport,
     baseline_fingerprint,
     load_crops_config,
     load_ml_config,
 )
 from fs_ml.inference import low_obs_months, season_months
 from fs_ml.models import decision_rule_text
+from fs_ml.soil_moisture import SM_MAX, SM_MIN, Downscaled, run
 
 _UNPREDICTED = "unpredicted"
 _NODATA = "nodata"
@@ -72,6 +74,12 @@ class CompositionCell(BaseModel):
         default=None, description="true, если precision группы crop_top по bbox не выше порога"
     )
     years: dict[str, YearEntry] | None = None
+    sm_rootzone: float | None = Field(
+        default=None, description="SMAP L4 root-zone moisture spread over the cell by NDMI: seasonal median, m3/m3"
+    )
+    sm_rootzone_pi: list[float] | None = Field(
+        default=None, description="[p10, p90] over dates of the cell's moisture, m3/m3"
+    )
 
 
 class DetailLayer(BaseModel):
@@ -535,7 +543,55 @@ def build_layer(
         cells=cells,
         detail=detail,
     )
+    if furrow.soil_moisture is not None and detail is not None:
+        add_soil_moisture(layer, furrow.soil_moisture)
     return layer, report
+
+
+def add_soil_moisture(layer: FurrowLayer, cfg: SoilMoistureExport) -> Downscaled:
+    """Write sm_rootzone / sm_rootzone_pi into the detail cells and the check into validation (both languages)."""
+    assert layer.detail is not None
+    d = run(cfg.cube, cfg.meta, cfg.smap, layer.detail.h3_resolution, cfg.max_days)
+    for key, cell in layer.detail.cells.items():
+        if key in d.cells and isinstance(cell, CompositionCell):
+            med, p10, p90, _ = d.cells[key]
+            cell.sm_rootzone, cell.sm_rootzone_pi = med, [p10, p90]
+    main = max(d.checks, key=lambda c: d.checks[c]["pixels"])
+    others = [(c, v) for c, v in d.checks.items() if c != main and v["r"] is not None]
+    filled = [c for c in layer.detail.cells.values() if isinstance(c, CompositionCell) and c.sm_rootzone is not None]
+    lo, hi = min(c.sm_rootzone or 0 for c in filled), max(c.sm_rootzone or 0 for c in filled)
+    r_main = d.checks[main]
+    rest_ru = ", ".join(f"{c} r = {v['r']:.2f} (n = {v['n']})" for c, v in others)
+    layer.validation += "; " + "; ".join([
+        (f"sm_rootzone — влага корневой зоны SMAP L4 (9 км, ячейки H3 res 5), распределённая по полям по "
+         f"спутниковому индексу влажности NDMI (HLS {d.dates_used} дат 2021): sm = SMAP × (1 + k·(NDMI − среднее NDMI "
+         f"ячейки res 5)), k = {d.k} — наибольший, при котором все пиксели в {SM_MIN}–{SM_MAX} м³/м³; среднее по "
+         f"ячейке res 5 равно SMAP; облачные пиксели не заполнялись; ближайшая дата SMAP не дальше {cfg.max_days} дней"),
+        (f"sm_rootzone — медиана по датам апр–окт 2021, sm_rootzone_pi — 10–90 перцентиль по датам; ячеек detail с "
+         f"влагой {len(filled)}, медианы {lo:.3f}–{hi:.3f} м³/м³"),
+        (f"проверка правдоподобия: корреляция среднего NDMI ячейки res 5 со SMAP по датам — {main} r = "
+         f"{r_main['r']:.2f} (n = {r_main['n']})" + (f"; соседние ячейки (часть пикселей в bbox): {rest_ru}" if others
+                                                    else "")),
+        *(["в основной ячейке связь NDMI и SMAP во времени почти нулевая: распределение по NDMI этим не подтверждено"]
+          if abs(r_main["r"]) < 0.3 else []),
+        "это распределение, а не предсказание модели; наземной проверки влаги нет",
+    ])
+    rest_en = ", ".join(f"{c} r = {v['r']:.2f} (n = {v['n']})" for c, v in others)
+    layer.validation_en = (layer.validation_en or "") + "; " + "; ".join([
+        (f"root-zone moisture: SMAP L4 (9 km, H3 res 5 cells) spread over the fields by the satellite moisture index "
+         f"NDMI (HLS, {d.dates_used} dates in 2021), sm = SMAP × (1 + k·(NDMI − cell mean NDMI)), k = {d.k}, the "
+         f"largest that keeps every pixel within {SM_MIN}–{SM_MAX} m³/m³; the res 5 cell mean equals SMAP; cloudy "
+         "pixels are left empty"),
+        (f"value = median over Apr–Oct 2021 dates, interval = 10th–90th percentile over dates; {len(filled)} detail "
+         f"cells, medians {lo:.3f}–{hi:.3f} m³/m³"),
+        (f"plausibility check: correlation of the cell's mean NDMI with SMAP over dates, {main} r = "
+         f"{r_main['r']:.2f} (n = {r_main['n']})" + (f"; neighbouring cells (partly in the window): {rest_en}"
+                                                    if others else "")),
+        *([("in the main cell NDMI and SMAP barely move together over time, so this check does not support the NDMI "
+            "split")] if abs(r_main["r"]) < 0.3 else []),
+        "a disaggregation, not a model prediction; no ground check of moisture",
+    ])
+    return d
 
 
 def main() -> None:
