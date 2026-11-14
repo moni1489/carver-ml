@@ -22,6 +22,7 @@ from fs_ml.config import (
     load_ml_config,
 )
 from fs_ml.inference import low_obs_months, season_months
+from fs_ml.lag import add_lag_columns
 from fs_ml.models import decision_rule_text
 from fs_ml.soil_moisture import SM_MAX, SM_MIN, Downscaled, run
 
@@ -41,6 +42,9 @@ class YearEntry(BaseModel):
     bare_months: list[int] | None = Field(default=None, description="месяцы, голые у не менее половины пикселей")
     low_obs_months: list[int] | None = Field(
         default=None, description="месяцы с одной чистой датой и меньше: мало наблюдений, в bare_months не входят"
+    )
+    lag_months: list[int] | None = Field(
+        default=None, description="месяцы, когда половина культурных пикселей ячейки отставала по NDVI от той же культуры в окне"
     )
 
 
@@ -204,6 +208,23 @@ def cell_bare_months(frame: pd.DataFrame, skip: set[int] | None = None) -> list[
     return out
 
 
+def lag_month_columns(pixels: pd.DataFrame) -> list[tuple[int, str]]:
+    return sorted((int(c.removeprefix("lag_status_")), c) for c in pixels.columns if c.startswith("lag_status_"))
+
+
+def cell_lag_months(frame: pd.DataFrame, skip: set[int] | None = None) -> list[int]:
+    """Months when at least half of the cell's judged crop pixels lagged (fs_ml.lag status 1/0/-1)."""
+    out: list[int] = []
+    for month, column in lag_month_columns(frame):
+        if month in (skip or set()):
+            continue
+        status = frame[column].to_numpy()
+        judged = status >= 0
+        if judged.sum() >= 10 and float((status[judged] == 1).mean()) >= _CELL_BARE_SHARE:
+            out.append(month)
+    return out
+
+
 def cell_years(
     frame: pd.DataFrame,
     prediction_year: int,
@@ -226,6 +247,8 @@ def cell_years(
     entry = YearEntry(crop=prediction_crop or None, source="model")
     if "bare_obs_dates" in frame.columns:
         entry.bare_obs_dates = round(float(frame["bare_obs_dates"].median()))
+    if lag_month_columns(frame):
+        entry.lag_months = cell_lag_months(frame, low_obs)
     if bare_month_columns(frame):
         entry.bare_months = cell_bare_months(frame, low_obs)
         if low_obs:
@@ -553,6 +576,18 @@ def build_layer(
         cells=cells,
         detail=detail,
     )
+    if any(c.startswith("lag_status_") for c in pixels.columns):
+        layer.validation += (
+            "; lag_months — месяцы, когда половина культурных пикселей ячейки была по NDVI в нижних 10% той же "
+            "культуры в окне на ту же дату и ниже её медианы на 0.15 и больше (только в зелёную фазу культуры, медиана NDVI ≥ 0.4); это относительный сигнал "
+            "для разговора с агрономом, не диагноз стресса"
+        )
+        if layer.validation_en:
+            layer.validation_en += (
+                "; lag_months: months when half of a cell's crop pixels had NDVI in the bottom 10% of the same "
+                "crop in the window on the same date and at least 0.15 below its median (green phase only, median NDVI >= 0.4); a relative signal for a "
+                "talk with an agronomist, not a stress diagnosis"
+            )
     if detail is not None and furrow.detail_min_agri_share > 0 and layer.validation_en:
         layer.validation_en += (
             f"; the field-scale map keeps cells with at least {furrow.detail_min_agri_share:.0%} predicted farm pixels"
@@ -624,6 +659,10 @@ def main() -> None:
     check_baseline_matches(summary, ml, crops)
     class_metrics = pd.read_csv(bcfg.reports_dir / "class_metrics_2021.csv").set_index("group")
     pixels = pd.read_parquet(bcfg.output_dir / "pixel_summary_2021.parquet")
+    ndvi_table = bcfg.output_dir / "pixels_2021.parquet"
+    if ndvi_table.exists():  # months when a field lagged behind the same crop nearby (fs_ml.lag)
+        lag_groups = [g for g in crops.agricultural_groups if crops.furrow_keys.get(g) != "fallow"]
+        pixels = add_lag_columns(pixels, pd.read_parquet(ndvi_table), lag_groups)
     kept = [date.fromisoformat(d) for d in summary.get("date_list", [])]
     low_obs = low_obs_months(kept, season_months(ml.ingest.temporal)) if kept else {}
     layer, report = build_layer(ml, crops, furrow, summary, class_metrics, pixels, low_obs)
