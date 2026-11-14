@@ -311,11 +311,13 @@ def compose(
     blocked: dict[str, dict[str, float]],
     prediction_year: int | None = None,
     low_obs: set[int] | None = None,
+    min_agri_share: float = 0.0,
 ) -> tuple[dict[str, CompositionCell], ExportReport]:
     """crop_mode composition: share of every predicted group per centre-inside cell (other not shown).
 
     With prediction_year set, each cell also gets `years` (previous-year CDL columns and bare-month columns are
-    used when the pixel table has them).
+    used when the pixel table has them). Cells whose non-other share is below min_agri_share are skipped, so a mostly
+    desert cell is not coloured by its few farm pixels.
     """
     report = ExportReport(groups_below_precision=blocked)
     cells: dict[str, CompositionCell] = {}
@@ -325,6 +327,9 @@ def compose(
         text, crop_p = composition_text(shares, furrow_keys, other_group, set(blocked))
         if not text:
             report.skipped_reasons[cell] = f"в ячейке только {other_group}, ячейка не записана"
+            continue
+        if 1 - shares.get(other_group, 0.0) < min_agri_share:
+            report.skipped_reasons[cell] = f"сельхоз-пикселей меньше {min_agri_share:.0%}, ячейка не записана"
             continue
         years = (
             cell_years(frame, prediction_year, text, furrow_keys, other_group, low_obs)
@@ -520,9 +525,14 @@ def build_layer(
                 blocked,
                 year,
                 skip,
+                furrow.detail_min_agri_share,
             )
             detail = DetailLayer(h3_resolution=furrow.detail_resolution, cells=dict(fine))
             notes.append(f"detail — те же поля на ячейках H3 res {furrow.detail_resolution} с центром внутри bbox")
+            if furrow.detail_min_agri_share > 0:
+                notes.append(
+                    f"в detail только ячейки, где предсказанных сельхоз-групп не меньше {furrow.detail_min_agri_share:.0%}"
+                )
     else:
         dominant, report = aggregate(pixels, ml.ingest.bbox, furrow.h3_resolution, crops.furrow_keys, groups, blocked)
         cells = dict(dominant)
@@ -543,6 +553,10 @@ def build_layer(
         cells=cells,
         detail=detail,
     )
+    if detail is not None and furrow.detail_min_agri_share > 0 and layer.validation_en:
+        layer.validation_en += (
+            f"; the field-scale map keeps cells with at least {furrow.detail_min_agri_share:.0%} predicted farm pixels"
+        )
     if furrow.soil_moisture is not None and detail is not None:
         add_soil_moisture(layer, furrow.soil_moisture)
     return layer, report

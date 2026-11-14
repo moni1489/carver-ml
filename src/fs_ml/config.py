@@ -128,6 +128,8 @@ class FurrowExport(BaseModel):
     crop_mode: Literal["composition", "dominant"] = "composition"
     # Optional finer layer "detail" with the same cell format (None = no detail layer).
     detail_resolution: int | None = Field(default=None, ge=0, le=15)
+    # Detail cells need at least this share of predicted farm groups (non-other); 0 keeps every cell.
+    detail_min_agri_share: float = Field(default=0.0, ge=0, le=1)
     # Checks run outside the main CV (e.g. another year), quoted in `validation` as written.
     # Empty = "другие регионы и годы не проверялись".
     checks: list[str] = Field(default_factory=list)

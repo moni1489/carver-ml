@@ -538,3 +538,13 @@ def test_validation_text_en_numbers_and_checks() -> None:
     assert "month(s) 07" in text and text.endswith("other regions and years not checked")
     checked = validation_text_en(summary, _baseline(), _crops(), {}, bbox, 2021, "HLSL30", [], {}, ["2020: 0.86"])
     assert checked.endswith("2020: 0.86") and "USDA CDL (fact)" not in checked
+
+
+def test_compose_skips_cells_below_min_agri_share() -> None:
+    cell, bbox = _cell_and_bbox()
+    keys = {"cotton": "cotton", "fallow_idle": "fallow"}
+    pixels = _pixels(["fallow_idle", "other", "other", "other"], bbox)   # 25% farm
+    kept, _ = compose(pixels, bbox, 5, keys, "other", {}, min_agri_share=0.2)
+    assert list(kept) == [cell]
+    dropped, report = compose(pixels, bbox, 5, keys, "other", {}, min_agri_share=0.3)
+    assert dropped == {} and "меньше 30%" in report.skipped_reasons[cell]

@@ -1,0 +1,77 @@
+{
+  "path": "data/ml/az_wide.json",
+  "crop_mode": "composition",
+  "h3_resolution": 5,
+  "config_sha256": "c382fdb17554d9a6a399586c38d66b354070b8756b65c4201a76cac89510d8fe",
+  "cells_written": {
+    "8548e943fffffff": {
+      "n_pixels_in_bbox": 326195,
+      "cell_area_km2": 293.9,
+      "group_shares": {
+        "fallow_idle": 0.266,
+        "other": 0.234,
+        "alfalfa": 0.2,
+        "corn": 0.177,
+        "cotton": 0.108,
+        "small_grains": 0.015
+      }
+    },
+    "8548e94bfffffff": {
+      "n_pixels_in_bbox": 302488,
+      "cell_area_km2": 293.9,
+      "group_shares": {
+        "other": 0.921,
+        "fallow_idle": 0.036,
+        "alfalfa": 0.021,
+        "cotton": 0.019,
+        "small_grains": 0.003,
+        "corn": 0.0
+      }
+    },
+    "8548e94ffffffff": {
+      "n_pixels_in_bbox": 241693,
+      "cell_area_km2": 293.5,
+      "group_shares": {
+        "other": 0.434,
+        "fallow_idle": 0.297,
+        "alfalfa": 0.184,
+        "corn": 0.042,
+        "cotton": 0.038,
+        "small_grains": 0.005
+      }
+    },
+    "8548e95bfffffff": {
+      "n_pixels_in_bbox": 232286,
+      "cell_area_km2": 294.2,
+      "group_shares": {
+        "other": 0.615,
+        "fallow_idle": 0.29,
+        "alfalfa": 0.057,
+        "small_grains": 0.02,
+        "cotton": 0.01,
+        "corn": 0.008
+      }
+    }
+  },
+  "cells_centre_outside_bbox": [
+    "8548e947fffffff",
+    "8548e953fffffff",
+    "8548e957fffffff",
+    "8548e97bfffffff",
+    "8548eb87fffffff",
+    "8548eb97fffffff",
+    "8548ebb3fffffff"
+  ],
+  "skipped_reasons": {},
+  "groups_without_furrow_key": [],
+  "groups_below_precision": {
+    "small_grains": {
+      "precision_bbox": 0.4239,
+      "min_precision": 0.7
+    }
+  },
+  "furrow_keys": {
+    "cotton": "cotton",
+    "fallow_idle": "fallow"
+  }
+}
